@@ -5,26 +5,36 @@ import { BAD_REQUEST, CREATED, OK } from '../../core/constants/api'
 import User from '../../core/db/models/User'
 import generator from 'generate-password'
 import sendSms from '@/core/services/sendSms'
+import sendEmail from '../../core/services/sendEmail'
 
 const api = Router()
 
 api.put('/', async (req: Request, res: Response) => {
   try {
-    const { phone } = req.body
+    const { email } = req.body
 
     const password = generator.generate({
       length: 10,
       numbers: true,
     })
-    let phoneWithIndicator = '+33' + phone.slice(1, phone.length)
+    const user: User | undefined = await User.findOne({ email })
+    let phoneWithIndicator: string = ''
+    if (user) {
+      let phone: string = user?.phone
+      if (phone) {
+        phoneWithIndicator = '+33' + phone.slice(1, phone.length)
+      }
+    }
     console.log(phoneWithIndicator)
-    const user = await User.findOne({ phone })
     if (user && password) {
       const passwordHash = bcrypt.hashSync(password, User.SALT_ROUND)
       if (!bcrypt.compareSync(password, user.password)) {
         user.password = passwordHash
         await user.save()
         sendSms(phoneWithIndicator, password)
+        const body = `Bonjour <strong>${user.firstname}</strong>,<p>voici votre nouveau mot de passe : ${password}</p>`
+        const subject = `Mot de passe oublié Gluten App`
+        sendEmail(body, email, subject)
         res.status(OK.status).json(success(user))
         console.log('Nouveau mot de passe : ', password)
       } else {
