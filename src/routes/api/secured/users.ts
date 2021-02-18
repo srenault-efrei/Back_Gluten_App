@@ -101,10 +101,7 @@ api.get('/:uuid/product/:barcode', async (req: Request, res: Response) => {
         .andWhere('usersProducts.barcode = :barcode', { barcode })
         .getOne()
 
-      if (usersProduct) {
-        // If userProduct exist
-        res.status(CREATED.status).json(success(product))
-      } else {
+      if (!usersProduct) {
         // If userProduct does not exist (create it)
         const newUsersProducts = new UsersProducts()
 
@@ -112,8 +109,16 @@ api.get('/:uuid/product/:barcode', async (req: Request, res: Response) => {
         newUsersProducts.userId = uuid
 
         await newUsersProducts.save()
-        res.status(CREATED.status).json(success(product))
       }
+
+      const usersProductsJoinProduct: UsersProducts | undefined = await getRepository(UsersProducts)
+        .createQueryBuilder('up')
+        .leftJoinAndSelect('up.product', 'product')
+        .where('up.userId = :uuid', { uuid })
+        .andWhere('up.barcode = :barcode ', { barcode })
+        .getOne()
+        
+      res.status(CREATED.status).json(success(usersProductsJoinProduct))
     } else {
       res.status(BAD_REQUEST.status).json({ err: 'User does not exist' })
     }
